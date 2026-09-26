@@ -21,6 +21,9 @@ export type WorkspaceItem = {
   status: "planned" | "in-progress" | "completed";
   priority: "low" | "medium" | "high";
   dueDate: string | null;
+  category?: string;
+  tags?: string[];
+  aiSummary?: string;
   createdAt: string;
   updatedAt: string;
 };

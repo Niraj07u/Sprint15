@@ -2,6 +2,8 @@ node_modules/
 .next/
 .npm-cache/
 /.data/
+/backend/.data/
 .env.local
 .env
 *.tsbuildinfo
+lighthouse-*.json

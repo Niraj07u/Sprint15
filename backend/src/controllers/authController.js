@@ -1,6 +1,9 @@
+import mongoose from "mongoose";
 import { User } from "../models/User.js";
 import { generateToken } from "../utils/token.js";
 import { toSafeUser } from "../utils/user.js";
+import { memoryStore } from "../utils/fallbackStore.js";
+import { logger } from "../utils/logger.js";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,23 +26,51 @@ export async function register(request, response, next) {
   if (validationMessage) return response.status(400).json({ success: false, message: validationMessage });
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  // If MongoDB is connected, use Mongoose
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const existingUser = await User.findOne({ email: normalizedEmail }).select("_id");
+      if (existingUser) {
+        logger.warn(`Registration rejected: Email already registered (${normalizedEmail})`);
+        return response.status(409).json({ success: false, message: "An account already exists for that email." });
+      }
+
+      const user = await User.create({ name: name.trim(), email: normalizedEmail, password });
+      logger.info(`User registered successfully: ${normalizedEmail}`);
+      return response.status(201).json({
+        success: true,
+        message: "Registration successful.",
+        token: generateToken(user._id),
+        user: toSafeUser(user),
+      });
+    } catch (error) {
+      if (error?.code === 11000) {
+        return response.status(409).json({ success: false, message: "An account already exists for that email." });
+      }
+      logger.error(`Registration error: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  // Resilient fallback storage
   try {
-    const existingUser = await User.findOne({ email: normalizedEmail }).select("_id");
-    if (existingUser) {
+    const existing = memoryStore.findUserByEmail(normalizedEmail);
+    if (existing) {
+      logger.warn(`Registration rejected: Email already registered in fallback store (${normalizedEmail})`);
       return response.status(409).json({ success: false, message: "An account already exists for that email." });
     }
 
-    const user = await User.create({ name: name.trim(), email: normalizedEmail, password });
+    const user = await memoryStore.createUser({ name: name.trim(), email: normalizedEmail, password });
+    logger.info(`User registered in local store: ${normalizedEmail}`);
     return response.status(201).json({
       success: true,
       message: "Registration successful.",
-      token: generateToken(user._id),
-      user: toSafeUser(user),
+      token: generateToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email },
     });
   } catch (error) {
-    if (error?.code === 11000) {
-      return response.status(409).json({ success: false, message: "An account already exists for that email." });
-    }
+    logger.error(`Fallback registration error: ${error.message}`);
     return next(error);
   }
 }
@@ -50,19 +81,47 @@ export async function login(request, response, next) {
     return response.status(400).json({ success: false, message: "Enter a valid email and password." });
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // If MongoDB is connected, use Mongoose
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const user = await User.findOne({ email: normalizedEmail }).select("+password");
+      if (!user || !(await user.comparePassword(password))) {
+        logger.warn(`Failed login attempt for: ${normalizedEmail}`);
+        return response.status(401).json({ success: false, message: "Email or password is incorrect." });
+      }
+
+      logger.info(`User logged in successfully: ${normalizedEmail}`);
+      return response.status(200).json({
+        success: true,
+        message: "Login successful.",
+        token: generateToken(user._id),
+        user: toSafeUser(user),
+      });
+    } catch (error) {
+      logger.error(`Login error: ${error.message}`);
+      return next(error);
+    }
+  }
+
+  // Resilient fallback storage
   try {
-    const user = await User.findOne({ email: email.trim().toLowerCase() }).select("+password");
-    if (!user || !(await user.comparePassword(password))) {
+    const user = memoryStore.findUserByEmail(normalizedEmail);
+    if (!user || !(await memoryStore.verifyPassword(user, password))) {
+      logger.warn(`Failed login attempt in fallback store for: ${normalizedEmail}`);
       return response.status(401).json({ success: false, message: "Email or password is incorrect." });
     }
 
+    logger.info(`User logged in via local store: ${normalizedEmail}`);
     return response.status(200).json({
       success: true,
       message: "Login successful.",
-      token: generateToken(user._id),
-      user: toSafeUser(user),
+      token: generateToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email },
     });
   } catch (error) {
+    logger.error(`Fallback login error: ${error.message}`);
     return next(error);
   }
 }

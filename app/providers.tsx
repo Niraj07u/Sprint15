@@ -3,6 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getCurrentUser, type AuthResponse, type AuthUser } from "@/lib/api-client";
+import { ToastProvider, useToast } from "@/components/toast/toast-context";
+import { ToastContainer } from "@/components/toast/toast-container";
+
+export { useToast };
 
 const TOKEN_KEY = "prodesk_auth_token";
 
@@ -63,7 +67,14 @@ export function Providers({ children }: { children: ReactNode }) {
     [error, isLoading, logout, user],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <ToastProvider>
+        {children}
+        <ToastContainer />
+      </ToastProvider>
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

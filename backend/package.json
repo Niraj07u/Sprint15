@@ -12,8 +12,12 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.4",
-    "prodesk-sprint-15": "file:.."
+    "morgan": "^1.12.1",
+    "prodesk-sprint-15": "file:..",
+    "winston": "^3.19.0"
   }
 }

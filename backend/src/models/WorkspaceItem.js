@@ -8,10 +8,16 @@ const workspaceItemSchema = new mongoose.Schema(
     status: { type: String, enum: ["planned", "in-progress", "completed"], default: "planned" },
     priority: { type: String, enum: ["low", "medium", "high"], default: "medium" },
     dueDate: { type: Date, default: null },
+
+    // Sprint 16 AI Enrichment Fields
+    category: { type: String, trim: true, maxlength: 50, default: "General" },
+    tags: { type: [String], default: [] },
+    aiSummary: { type: String, trim: true, maxlength: 250, default: "" },
   },
   { timestamps: true },
 );
 
 workspaceItemSchema.index({ userId: 1, createdAt: -1 });
 
-export const WorkspaceItem = mongoose.models.WorkspaceItem || mongoose.model("WorkspaceItem", workspaceItemSchema);
+export const WorkspaceItem =
+  mongoose.models.WorkspaceItem || mongoose.model("WorkspaceItem", workspaceItemSchema);
